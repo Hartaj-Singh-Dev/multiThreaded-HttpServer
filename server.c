@@ -8,8 +8,13 @@
 #include<stdlib.h>
 #include<netdb.h>
 #include<string.h>
+#include"threadPool.h"
 
 #define LISTEN_BACKLOG 50
+
+void init_thread_pool(int num_threads);
+void add_task(int client_fd);
+void destroy_thread_pool();
 
 void handle_client(int client_fd){
         sleep(10);
@@ -60,7 +65,9 @@ void* thread_function(void* arg){
 
 
 int main(){
-	int socfd = socket(AF_INET ,SOCK_STREAM  ,0 );
+    init_thread_pool(2);
+    
+    int socfd = socket(AF_INET ,SOCK_STREAM  ,0 );
 	if(socfd < 0){ perror("Socket error"); 
 	exit(-1);
 	}
@@ -90,7 +97,6 @@ int main(){
 	socklen_t addr_size = sizeof(their_addr);
 
 	
-
 	
 	while(1){
 	    int client_fd = accept(socfd, (struct  sockaddr *) &their_addr, &addr_size);
@@ -102,19 +108,20 @@ int main(){
 		char ipstr[INET_ADDRSTRLEN];
 		struct sockaddr_in *addr = (struct sockaddr_in *)&their_addr;
 	  inet_ntop(AF_INET , &addr->sin_addr , ipstr , sizeof(ipstr));
-		printf("Accepted Connection from %s fd=%d\n" , 
-		ipstr , client_fd);	
-		pthread_t thread1;
-		int *fd_ptr = malloc(sizeof(int));
-		*fd_ptr = client_fd;
-		if(pthread_create(&thread1, NULL, thread_function, fd_ptr) != 0){
-		perror("pthread_create Error");
-		close(client_fd);
-		free(fd_ptr);
-		continue;
-		};
-		pthread_detach(thread1);
+		printf("Accepted Connection from %s fd=%d\n" ,ipstr , client_fd);	
+		add_task(client_fd);
+		// pthread_t thread1;
+		// int *fd_ptr = malloc(sizeof(int));
+		// *fd_ptr = client_fd;
+		// if(pthread_create(&thread1, NULL, thread_function, fd_ptr) != 0){
+		// perror("pthread_create Error");
+		// close(client_fd);
+		// free(fd_ptr);
+		// continue;
+		// };
+		// pthread_detach(thread1);
 	}
+	destroy_thread_pool();
 	close(socfd);
 	return 0;
 }
