@@ -7,6 +7,8 @@
 #include<stdio.h>
 
 //This code gives current Time in nanoseconds
+// tv_sec = seconds
+// tv_nsec = nanoseconds
 static uint64_t current_time_ns(){
     struct timespec ts;
 
@@ -31,14 +33,16 @@ bool token_bucket_consume(TokenBucket* bucket , uint64_t tokens){
         if(new_time <min_time){
             new_time = min_time;
         };
-        new_time += time_needed;
+      //Spend Tokens-->>  
+      new_time += time_needed; 
         //Not enough TOkens
         if(new_time > now){
             pthread_mutex_unlock(&bucket->mutex);
             return false;
         };
 
-        bucket->time_ns = new_time;
+     //Equivalent to removing tokens 
+       bucket->time_ns = new_time;
         pthread_mutex_unlock(&bucket->mutex);
 
         return true;
