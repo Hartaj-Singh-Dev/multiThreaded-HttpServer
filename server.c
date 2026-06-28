@@ -9,12 +9,32 @@
 #include<netdb.h>
 #include<string.h>
 #include"threadPool.h"
+#include"lruCache.h"
 
 #define LISTEN_BACKLOG 50
+
+pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 void init_thread_pool(int num_threads);
 void add_task(int client_fd);
 void destroy_thread_pool();
+
+lruCache* cache;
+
+
+char* read_file(const char* filename , size_t* file_size){
+    FILE *fp = fopen(filename , "rb");
+    if(fp == NULL) return NULL;
+    fseek( fp , 0 , SEEK_END);
+    *file_size = ftell(fp);
+    rewind(fp);
+    char* buffer = malloc(*file_size);
+    fread(buffer , 1 , *file_size , fp);
+    fclose(fp);
+    return buffer;
+}
+
 
 void handle_client(int client_fd){
         sleep(10);
@@ -25,6 +45,8 @@ void handle_client(int client_fd){
 		if(num_bytes < 0){
 		perror("recv Error");
 		};
+
+	
 		
 		if(strncmp(http_request , "GET" , 3) == 0){
 		printf("Received HTTP GET request :\n");
@@ -35,16 +57,31 @@ void handle_client(int client_fd){
 								"Connection: close\r\n"
 								"\r\n";
 				send(client_fd , header , strlen(header) , 0);
-			    FILE *index_fd = fopen("index.html" , "r");
-				if(index_fd == NULL){
-				printf("Fopen error");
-				close(client_fd);
-				return;
-				}
-				char c;
-				while((c = getc(index_fd)) != EOF){
-				int dataSent = send(client_fd, &c ,1, 0);	
-				}
+			 //    FILE *index_fd = fopen("index.html" , "r");
+				// if(index_fd == NULL){
+				// printf("Fopen error");
+				// close(client_fd);
+				// return;
+				// }
+				// while((c = getc(index_fd)) != EOF){
+				// int dataSent = send(client_fd, &c ,1, 0);	
+				// }
+				pthread_mutex_lock(&cache_mutex);
+				CacheNode* entry = cache_get(cache , "/index.html");
+				if(entry != NULL){
+				printf("Cache HIT\n");
+				send(client_fd , entry->content , entry->content_size , 0);
+				}else{
+				printf("Cache MISS\n");
+				size_t size;
+				char* file_data = read_file("index.html", &size);
+				if(file_data == NULL){close(client_fd); return;};
+				cache_put(cache , "/index.html" , file_data , size);
+				send(client_fd , file_data , size , 0);
+				free(file_data);
+				pthread_mutex_unlock(&cache_mutex);
+				};
+
 				
 		}
 		
@@ -66,6 +103,8 @@ void* thread_function(void* arg){
 
 int main(){
     init_thread_pool(2);
+    // cache = cache_init(5);
+
     
     int socfd = socket(AF_INET ,SOCK_STREAM  ,0 );
 	if(socfd < 0){ perror("Socket error"); 
@@ -122,6 +161,7 @@ int main(){
 		// pthread_detach(thread1);
 	}
 	destroy_thread_pool();
+	// cache_destroy(cache);
 	close(socfd);
 	return 0;
 }
