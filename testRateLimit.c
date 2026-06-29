@@ -6,7 +6,7 @@ int main(){
     TokenBucket bucket;
     //5 req/sec or 5 tokens per second
     // 10 is maximum capcacity
-    token_bucket_init(&bucket, 5, 10);
+    token_bucket_init(&bucket, 4, 10);
 
     for(int i = 1 ;i <= 20 ;i++){
         if(token_bucket_consume(&bucket , 1)){
@@ -14,7 +14,7 @@ int main(){
         }else{
             printf("Request %2d: REJECTED\n" , i);
         }
-        usleep(100000);
+       usleep(10000); 
     };
 
     return 0;

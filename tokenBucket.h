@@ -1,6 +1,7 @@
 #ifndef RATE_LIMITER_H
 #define RATE_LIMITER_H
 
+#include <netinet/in.h>
 #include <stdint.h>
 #include<stdbool.h>
 #include<pthread.h>
@@ -21,6 +22,19 @@ typedef struct{
 } TokenBucket;
 
 
+typedef struct ClientBucket{
+    char ip[INET_ADDRSTRLEN];
+    TokenBucket bucket;
+    struct ClientBucket* next;
+} ClientBucket;
+
+typedef struct{
+    ClientBucket *head;
+    pthread_mutex_t mutex;
+    uint64_t rate;
+    uint64_t burst;
+} RateLimiter;
+
 //it means , if time_ns < current_time , then (current_time - time_ns) per sec worth fo tokens are available
 // 
 //Rate ->> it's measure of tokens generated pre second 
@@ -31,5 +45,7 @@ void token_bucket_init(TokenBucket* bucket , uint64_t rate , uint64_t burst_size
 //TRUE -> request allowed
 //FALSE -> request rejected 
 bool token_bucket_consume(TokenBucket* bucket, uint64_t tokens);
-
+bool allow_request(RateLimiter* rl , const char* ip);
+void rate_limiter_init(RateLimiter* rl , uint64_t rate , uint64_t burst);
+void rate_limiter_destroy(RateLimiter * rl);
 #endif

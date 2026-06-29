@@ -1,3 +1,4 @@
+#include "tokenBucket.h"
 #include <netinet/in.h>
 #include<arpa/inet.h>
 #include<stdio.h>
@@ -33,6 +34,18 @@ char* read_file(const char* filename , size_t* file_size){
     fread(buffer , 1 , *file_size , fp);
     fclose(fp);
     return buffer;
+}
+
+void send_429(int client_fd){
+    const char* response=
+        "HTTP/1.1 429 Too Many Requests\r\n"
+        "Content-Type: text/plain\r\n"
+              "Connection: close\r\n"
+              "Content-Length: 18\r\n"
+              "\r\n"
+              "Too Many Requests";
+    send(client_fd , response , strlen(response) , 0);
+        
 }
 
 
@@ -103,8 +116,9 @@ void* thread_function(void* arg){
 
 int main(){
     init_thread_pool(2);
+    RateLimiter limiter;
+    rate_limiter_init(&limiter , 20 , 40);
     // cache = cache_init(5);
-
     
     int socfd = socket(AF_INET ,SOCK_STREAM  ,0 );
 	if(socfd < 0){ perror("Socket error"); 
@@ -148,6 +162,13 @@ int main(){
 		struct sockaddr_in *addr = (struct sockaddr_in *)&their_addr;
 	  inet_ntop(AF_INET , &addr->sin_addr , ipstr , sizeof(ipstr));
 		printf("Accepted Connection from %s fd=%d\n" ,ipstr , client_fd);	
+		
+// -->> this was earlier before rate limiting ->>// add_task(client_fd);
+		if(!allow_request(&limiter , ipstr)){
+		send_429(client_fd);
+		close(client_fd);	
+			continue;
+		}
 		add_task(client_fd);
 		// pthread_t thread1;
 		// int *fd_ptr = malloc(sizeof(int));
